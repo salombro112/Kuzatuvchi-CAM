@@ -1,5 +1,5 @@
 const CONFIG = {
-  BOT_TOKEN: "8929185953:AAE1QkoRclSH640rvqVThh9kUed5MXaEZ1c",     // <-- @BotFather'dan olingan token
+  BOT_TOKEN: "8956590718:AAGn9IHrFumnd9w1aMKvlRVaJyoGGn27uwA",     // <-- @BotFather'dan olingan token
   CHAT_ID: "@buyurtmalar_cam",          // <-- yoki -100XXXXXXXXXX ko'rinishidagi guruh id
 
   // 1 AQSH dollari necha so'm ekanini shu yerda ko'rsating (mahsulot narxlari
