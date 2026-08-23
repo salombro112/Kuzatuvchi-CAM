@@ -1,9 +1,8 @@
 const CONFIG = {
-  BOT_TOKEN: "8956590718:AAGn9IHrFumnd9w1aMKvlRVaJyoGGn27uwA",     // <-- @BotFather'dan olingan token
-  CHAT_ID: "@buyurtmalar_cam",          // <-- yoki -100XXXXXXXXXX ko'rinishidagi guruh id
+  BOT_TOKEN: "8956590718:AAGn9IHrFumnd9w1aMKvlRVaJyoGGn27uwA",   
+  CHAT_ID: "@buyurtmalar_cam",  
 
-  // 1 AQSH dollari necha so'm ekanini shu yerda ko'rsating (mahsulot narxlari
-  // manba fayllarda USD/u.e.da bo'lgani uchun). Kerak bo'lsa yangilab turing.
+
   USD_TO_SUM: 1,
 
   FIREBASE: {
