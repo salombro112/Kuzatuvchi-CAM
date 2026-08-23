@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Kuzatuv Cam</title>
+<link rel="stylesheet" href="style.css">
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<!-- Firebase — admin qo'shgan/o'zgartirgan/o'chirgan mahsulotlarni BARCHA
+     foydalanuvchiga bir zumda yetkazish uchun (sozlash: app.js > CONFIG.FIREBASE) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ==================== ONBOARDING (ism/telefon) ==================== -->
+  <div id="onboarding" class="screen">
+    <div class="onboard-wrap">
+      <div class="onboard-logo"><img src="logo.jpg" alt="Kuzatuv Cam" class="logo-img"></div>
+      <h1 class="onboard-title">Kuzatuv Cam</h1>
+      <p class="onboard-sub">O'zingizga kerakli mahsulotlarni — tanlang, buyurtma bering, biz yetkazib o'rnatib beramiz.</p>
+
+      <form id="onboardForm" class="onboard-form">
+        <label class="field">
+          <span>Ismingiz</span>
+          <input type="text" id="regName" placeholder="Masalan: Aziz" required minlength="2">
+        </label>
+        <label class="field">
+          <span>Telefon raqamingiz</span>
+          <input type="tel" id="regPhone" placeholder="+998 90 123 45 67" required>
+        </label>
+        <button type="submit" class="btn-primary">Kirish</button>
+      </form>
+      <p class="onboard-note">Birinchi marta kirsangiz — akkaunt avtomatik yaratiladi.<br>Avval ro'yxatdan o'tgan bo'lsangiz — o'sha ism va raqamni kiriting.</p>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN APP ==================== -->
+  <div id="mainApp" class="screen" style="display:none;">
+
+    <!-- Top bar -->
+    <header class="topbar">
+      <div class="topbar-logo"><img src="logo.jpg" alt="Kuzatuv Cam" class="topbar-logo-img"> <span>Kuzatuv Cam</span></div>
+      <div class="topbar-cart" id="topCartBtn">
+        🛒<span class="badge" id="cartBadge" style="display:none;">0</span>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main id="content" class="content"></main>
+
+    <!-- Bottom nav -->
+    <nav class="bottomnav">
+      <button class="nav-btn active" data-screen="home">
+        <span class="nav-icon">🏠</span><span>Bosh menyu</span>
+      </button>
+      <button class="nav-btn" data-screen="search">
+        <span class="nav-icon">🔍</span><span>Qidiruv</span>
+      </button>
+      <button class="nav-btn" data-screen="cart">
+        <span class="nav-icon">🛒</span><span>Savat</span>
+      </button>
+      <button class="nav-btn" data-screen="profile">
+        <span class="nav-icon">👤</span><span>Profil</span>
+      </button>
+    </nav>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+</div>
+
+<script src="products-data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
