@@ -1,16 +1,7 @@
 const CONFIG = {
-  BOT_TOKEN: "8929185953:AAE1QkoRclSH640rvqVThh9kUed5MXaEZ1c",     // <-- @BotFather'dan olingan token
+  BOT_TOKEN: "8956590718:AAGn9IHrFumnd9w1aMKvlRVaJyoGGn27uwA",     // <-- @BotFather'dan olingan token (haqiqiy bot bilan bir xil bo'lishi shart!)
   CHAT_ID: "@buyurtmalar_cam",          // <-- yoki -100XXXXXXXXXX ko'rinishidagi guruh id
-
-  // SMS orqali tasdiqlash (OTP) — kirish sahifasida. iSMS.uz (yoki shu
-  // formatga mos boshqa SMS-shlyuz) hisobingizdan API kalitini shu yerga
-  // qo'ying. Ro'yxatdan o'tish: https://simcard.uz/gateway/register.php
-  SMS: {
-    API_URL: "https://api.isms.uz/v1/send",
-    API_KEY: "YOUR_ISMS_API_KEY",      // <-- iSMS.uz panelidan olingan kalit
-    DEVICE_ID: "phone_01",             // <-- iSMS.uz'da ulangan qurilma nomi
-    CODE_TTL_SEC: 120,                 // Kod amal qilish muddati (soniyada) — 2 daqiqa
-  },
+  BOT_USERNAME: "YOUR_BOT_USERNAME",    // <-- masalan "kuzatuvchicam_bot" (@ belgisisiz) — botdan tashqarida ochilganda shu havolaga yo'naltiriladi
 
   // 1 AQSH dollari necha so'm ekanini shu yerda ko'rsating (mahsulot narxlari
   // manba fayllarda USD/u.e.da bo'lgani uchun). Kerak bo'lsa yangilab turing.
@@ -26,9 +17,10 @@ const CONFIG = {
 
 const FIREBASE_ENABLED = CONFIG.FIREBASE.apiKey !== "YOUR_FIREBASE_API_KEY";
 
-/* Administrator hisobi — shu ism va "parol" (telefon raqami maydoniga
-   yoziladi) bilan kirilsa, akkauntga admin huquqlari beriladi. */
-const ADMIN_CREDENTIALS = { name: "Sirius", phone: "sIRIUS746" };
+/* Administrator telefon raqami — foydalanuvchi Telegram bot orqali AYNAN
+   shu raqamni (kontakt ulashish orqali) yuborsa, akkauntiga admin
+   huquqlari beriladi. Format: "+998" bilan boshlanadi. */
+const ADMIN_PHONE = "+998330000746";
 
 /* ---------------------------- Mahsulotlar katalogi (standart) ---------------------------- */
 const DEFAULT_PRODUCTS = (typeof PRODUCTS_DATA !== "undefined") ? PRODUCTS_DATA : [];
@@ -401,160 +393,55 @@ function showToast(msg, duration) {
   showToast._t = setTimeout(() => t.classList.remove("show"), ms);
 }
 
-/* ---------------------------- Onboarding + SMS OTP tasdiqlash ---------------------------- */
-/* Kutilayotgan (hali tasdiqlanmagan) ro'yxatdan o'tish ma'lumotlari — SMS
-   kod tasdiqlangach shu ma'lumotlar asosida akkaunt yaratiladi/kirish
-   amalga oshiriladi. Sahifa yangilansa (F5) tozalanadi — bu me'yoriy holat. */
-let pendingRegistration = null;
-let otpTimerInterval = null;
-
+/* ---------------------------- Kirish (Telegram orqali avtomatik) ---------------------------- */
+/* Endi saytda login formasi yo'q. Foydalanuvchi identifikatsiyasi butunlay
+   Telegram bot orqali (bot chatida "Kontaktni yuborish" tugmasi bosilganda)
+   aniqlanadi va Firebase'ga ("telegramContacts/<telegram_id>") yoziladi.
+   WebApp ochilganda esa shu yozuvni o'qib, avtomatik kiradi — qarang:
+   resolveTelegramAccount() va initTelegramWebApp() (pastda). */
 function showAuthScreen(id) {
-  ["onboarding", "otpVerify", "mainApp"].forEach((s) => {
+  ["onboarding", "mainApp"].forEach((s) => {
     document.getElementById(s).style.display = s === id ? "block" : "none";
   });
 }
 
-/* Ism/telefon kiritilgach: agar bu admin login bo'lsa (parol maydoniga
-   maxsus "parol" yozilgan), SMS shart emas — chunki bu haqiqiy telefon
-   raqami emas. Aks holda, 4 xonali kod generatsiya qilib SMS orqali
-   yuboramiz va tasdiqlash ekranini ochamiz. */
-document.getElementById("onboardForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const name = document.getElementById("regName").value.trim();
-  const phone = document.getElementById("regPhone").value.trim();
-  if (!name || !phone) return;
-
-  const isTheAdmin = name === ADMIN_CREDENTIALS.name && phone === ADMIN_CREDENTIALS.phone;
-  if (isTheAdmin) {
-    completeLogin(name, phone, true);
-    return;
+function showOnboardingFallback() {
+  const msg = document.getElementById("onboardStatusMsg");
+  const fallback = document.getElementById("onboardFallback");
+  if (msg) msg.style.display = "none";
+  if (fallback) fallback.style.display = "block";
+  const link = document.getElementById("openBotLink");
+  if (link && CONFIG.BOT_USERNAME && CONFIG.BOT_USERNAME !== "YOUR_BOT_USERNAME") {
+    link.href = "https://t.me/" + CONFIG.BOT_USERNAME;
   }
-
-  const submitBtn = e.target.querySelector("button[type=submit]");
-  if (submitBtn) { submitBtn.disabled = true; submitBtn.textContent = "Yuborilmoqda..."; }
-
-  const code = String(Math.floor(1000 + Math.random() * 9000)); // 4 xonali kod
-  pendingRegistration = {
-    name, phone, code,
-    expiresAt: Date.now() + CONFIG.SMS.CODE_TTL_SEC * 1000,
-  };
-
-  sendOtpSms(phone, code)
-    .then(() => {
-      document.getElementById("otpPhoneShown").textContent = phone;
-      document.getElementById("otpCode").value = "";
-      showAuthScreen("otpVerify");
-      startOtpTimer();
-      document.getElementById("otpCode").focus();
-    })
-    .catch((err) => {
-      console.error("SMS yuborishda xatolik:", err);
-      showToast("Xatolik: " + (err && err.message ? err.message : "SMS yuborilmadi"));
-    })
-    .finally(() => {
-      if (submitBtn) { submitBtn.disabled = false; submitBtn.textContent = "Kirish"; }
-    });
-});
-
-/* iSMS.uz (yoki shu formatdagi boshqa shlyuz) orqali SMS yuboradi. */
-async function sendOtpSms(phone, code) {
-  if (!CONFIG.SMS.API_KEY || CONFIG.SMS.API_KEY === "YOUR_ISMS_API_KEY") {
-    throw new Error("SMS API kaliti sozlanmagan. app.js faylidagi CONFIG.SMS ni to'ldiring.");
-  }
-  const res = await fetch(CONFIG.SMS.API_URL, {
-    method: "POST",
-    headers: {
-      "Authorization": "Bearer " + CONFIG.SMS.API_KEY,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      to: phone,
-      message: `Kuzatuv Cam tasdiqlash kodingiz: ${code}. Kod 2 daqiqa amal qiladi.`,
-      device_id: CONFIG.SMS.DEVICE_ID,
-    }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || data.success === false) {
-    throw new Error(data.message || data.error || `SMS yuborilmadi (status ${res.status})`);
-  }
-  return data;
 }
 
-/* 2 daqiqalik teskari sanoqni yuritadi va ekranni har soniyada yangilaydi. */
-function startOtpTimer() {
-  clearInterval(otpTimerInterval);
-  const timerEl = document.getElementById("otpTimer");
-  const resendBtn = document.getElementById("otpResendBtn");
-  resendBtn.disabled = true;
-  timerEl.classList.remove("expired");
-
-  const tick = () => {
-    if (!pendingRegistration) { clearInterval(otpTimerInterval); return; }
-    const remaining = Math.max(0, Math.ceil((pendingRegistration.expiresAt - Date.now()) / 1000));
-    const mm = String(Math.floor(remaining / 60)).padStart(2, "0");
-    const ss = String(remaining % 60).padStart(2, "0");
-    if (remaining <= 0) {
-      timerEl.textContent = "Kod muddati tugadi";
-      timerEl.classList.add("expired");
-      resendBtn.disabled = false;
-      clearInterval(otpTimerInterval);
-    } else {
-      timerEl.textContent = `Kod amal qilish muddati: ${mm}:${ss}`;
-    }
-  };
-  tick();
-  otpTimerInterval = setInterval(tick, 1000);
-}
-
-document.getElementById("otpForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  if (!pendingRegistration) { showAuthScreen("onboarding"); return; }
-  const entered = document.getElementById("otpCode").value.trim();
-
-  if (Date.now() > pendingRegistration.expiresAt) {
-    showToast("Kod muddati tugagan. Qayta yuboring.");
+/* Telegram Mini App identifikatori (tg.initDataUnsafe.user.id) bo'yicha
+   Firebase'dan avvaldan yozilgan kontakt ma'lumotini (ism, telefon, admin
+   bayrog'i) o'qib, avtomatik kirishni yakunlaydi. */
+function resolveTelegramAccount(tgUserId) {
+  if (!FIREBASE_ENABLED || !fbDb) {
+    console.error("Firebase sozlanmagan — Telegram orqali avtomatik kirish ishlamaydi.");
+    showOnboardingFallback();
     return;
   }
-  if (entered !== pendingRegistration.code) {
-    showToast("Kod noto'g'ri. Qaytadan urinib ko'ring.");
-    return;
-  }
-
-  const { name, phone } = pendingRegistration;
-  pendingRegistration = null;
-  clearInterval(otpTimerInterval);
-  completeLogin(name, phone, false);
-});
-
-document.getElementById("otpResendBtn").addEventListener("click", () => {
-  if (!pendingRegistration) return;
-  const btn = document.getElementById("otpResendBtn");
-  btn.disabled = true;
-  const code = String(Math.floor(1000 + Math.random() * 9000));
-  pendingRegistration.code = code;
-  pendingRegistration.expiresAt = Date.now() + CONFIG.SMS.CODE_TTL_SEC * 1000;
-
-  sendOtpSms(pendingRegistration.phone, code)
-    .then(() => {
-      showToast("Kod qayta yuborildi ✓");
-      startOtpTimer();
+  fbDb.ref("telegramContacts/" + tgUserId).once("value")
+    .then((snap) => {
+      const data = snap.val();
+      if (!data || !data.phone) {
+        showOnboardingFallback();
+        return;
+      }
+      const isAdmin = data.is_admin || data.phone === ADMIN_PHONE;
+      completeLogin(data.name || "Mijoz", data.phone, isAdmin);
     })
     .catch((err) => {
-      console.error("SMS yuborishda xatolik:", err);
-      showToast("Xatolik: " + (err && err.message ? err.message : "SMS yuborilmadi"));
-      btn.disabled = false;
+      console.error("Telegram kontaktini o'qishda xatolik:", err);
+      showOnboardingFallback();
     });
-});
+}
 
-document.getElementById("otpBackBtn").addEventListener("click", () => {
-  pendingRegistration = null;
-  clearInterval(otpTimerInterval);
-  showAuthScreen("onboarding");
-});
-
-/* Tasdiqlangach (yoki admin bo'lsa to'g'ridan-to'g'ri) akkaunt
-   yaratish/kirish — avvalgi onboardForm ichidagi mantiq shu yerga
-   ko'chirildi, chunki endi ikkita joydan (admin va oddiy OTP) chaqiriladi. */
+/* Tasdiqlangach akkaunt yaratish/kirish. */
 function completeLogin(name, phone, isTheAdmin) {
   const existing = state.knownAccounts[phone];
 
@@ -1215,8 +1102,13 @@ function attachDynamicListeners() {
   if (confirmBtn) {
     confirmBtn.addEventListener("click", () => {
       const manual = document.getElementById("manualAddress").value.trim();
+      const contactPhone = document.getElementById("contactPhone").value.trim();
       if (!pendingLocation && !manual) {
         showToast("Joylashuvni yuboring yoki manzilni yozing");
+        return;
+      }
+      if (!contactPhone) {
+        showToast("Aloqa uchun raqamni kiriting");
         return;
       }
       // Koordinata (avtomatik aniqlangan) va qo'lda yozilgan manzil bo'lsa —
@@ -1228,7 +1120,7 @@ function attachDynamicListeners() {
         address: manual || (pendingLocation && pendingLocation.address) || "",
         text: combinedText || coordText || manual,
       };
-      submitOrder(location);
+      submitOrder(location, contactPhone);
     });
   }
 
@@ -1237,8 +1129,9 @@ function attachDynamicListeners() {
     state.account = null;
     localStorage.removeItem(LS.account);
     state.cart = []; state.cable = { set: 0, tok: 0 }; state.orders = [];
-    document.getElementById("regName").value = "";
-    document.getElementById("regPhone").value = "";
+    // Eslatma: identifikatsiya Telegram akkauntiga bog'langani uchun, agar
+    // ilova hali ham botdan ochilgan bo'lsa, boot() Firebase'dan bir zumda
+    // qayta o'qib avtomatik kirgazadi — bu me'yoriy holat.
     boot();
   });
 
@@ -1391,6 +1284,11 @@ function renderOrderLocation() {
       <textarea id="manualAddress" rows="3" placeholder="Masalan: Toshkent sh., Chilonzor tumani, ..."></textarea>
     </div>
 
+    <div class="field" style="margin-top:16px;">
+      <span>Aloqa uchun raqam</span>
+      <input type="tel" id="contactPhone" placeholder="+998 90 123 45 67" value="${escapeHtml(state.account && state.account.phone || "")}">
+    </div>
+
     <div class="summary-box" style="margin-top:18px;">
       <div class="summary-line total"><span>Jami to'lov</span><span>${total.toLocaleString("ru-RU").replace(/,/g," ")} so'm</span></div>
     </div>
@@ -1400,7 +1298,7 @@ function renderOrderLocation() {
 }
 
 /* ---------------------------- Buyurtma berish + Telegramga yuborish ---------------------------- */
-async function submitOrder(location) {
+async function submitOrder(location, contactPhone) {
   const btn = document.getElementById("confirmOrderBtn");
   if (btn) { btn.disabled = true; btn.textContent = "Yuborilmoqda..."; }
 
@@ -1412,6 +1310,7 @@ async function submitOrder(location) {
     id: "ord_" + Date.now(),
     date: new Date().toLocaleString("uz-UZ"),
     account: { name: state.account.name, phone: state.account.phone },
+    contactPhone: contactPhone || state.account.phone,
     items: items.map((i) => ({ name: i.name, qty: i.qty, price: i.price })),
     cable: { set: state.cable.set || 0, tok: state.cable.tok || 0, sum: cabTotal },
     location,
@@ -1446,7 +1345,10 @@ function buildTelegramMessage(order) {
   lines.push("🆕 <b>YANGI BUYURTMA — Kuzatuv Cam</b>");
   lines.push("");
   lines.push(`👤 <b>Mijoz:</b> ${escapeHtml(order.account.name)}`);
-  lines.push(`📞 <b>Telefon:</b> ${escapeHtml(order.account.phone)}`);
+  lines.push(`📞 <b>Telefon (Telegram):</b> ${escapeHtml(order.account.phone)}`);
+  if (order.contactPhone && order.contactPhone !== order.account.phone) {
+    lines.push(`☎️ <b>Aloqa uchun raqam:</b> ${escapeHtml(order.contactPhone)}`);
+  }
   lines.push("");
   if (order.items.length) {
     lines.push("📦 <b>Mahsulotlar:</b>");
@@ -1496,15 +1398,22 @@ async function sendToTelegram(text) {
 }
 
 /* ---------------------------- Telegram Mini App ---------------------------- */
+/* Ilova Telegram bot ichida (Mini App sifatida) ochilganda true bo'ladi.
+   Bu holatda foydalanuvchi telefon raqami saytda emas, bot chatining
+   o'zida ("Kontaktni yuborish" tugmasi orqali) so'raladi va natija
+   Firebase'ga yoziladi — sayt shu yozuvni o'qib avtomatik kiradi. */
+let inTelegramMiniApp = false;
+let tgUserId = null;
+
 function initTelegramWebApp() {
   if (window.Telegram && window.Telegram.WebApp) {
     const tg = window.Telegram.WebApp;
     tg.ready();
     tg.expand();
     const tgUser = tg.initDataUnsafe && tg.initDataUnsafe.user;
-    if (tgUser && !state.account) {
-      const nameInput = document.getElementById("regName");
-      if (nameInput && !nameInput.value) nameInput.value = tgUser.first_name || "";
+    if (tgUser) {
+      inTelegramMiniApp = true;
+      tgUserId = tgUser.id;
     }
   }
 }
@@ -1515,9 +1424,15 @@ function boot() {
     loadAccountSession();
     showAuthScreen("mainApp");
     goScreen("home");
-  } else {
-    showAuthScreen("onboarding");
+    return;
   }
+
+  if (inTelegramMiniApp && tgUserId) {
+    resolveTelegramAccount(tgUserId);
+  } else {
+    showOnboardingFallback();
+  }
+  showAuthScreen("onboarding");
 }
 
 initTelegramWebApp();
